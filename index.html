@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="pageTitleText">භූගෝල විද්‍යාව - සිතියම් ප්‍රශ්න මාලාව සහ මෘදුකාංගය (All Shapes Quiz Pro)</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/docx/7.3.0/docx.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+    <!-- UTIF.js for robust TIF/TIFF parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js"></script>
+
+    <style>
+        :root { --primary: #0f172a; --accent: #000000; --bg: #f8fafc; --glass: rgba(255, 255, 255, 0.85); }
+        body { font-family: 'Iskoola Pota', 'Segoe UI', sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background: var(--bg); color: #334155; }
+        .main-wrapper { display: flex; flex: 1; overflow: hidden; }
+        .questions-side { flex: 1; overflow-y: auto; padding: 24px; background: white; display: flex; flex-direction: column; box-shadow: 4px 0 20px rgba(0,0,0,0.03); z-index: 10; }
+        .map-side { flex: 1.6; background: #0f172a; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        
+        .map-tools { position: absolute; top: 16px; left: 16px; z-index: 100; background: var(--glass); backdrop-filter: blur(12px); padding: 12px; border-radius: 12px; display: none; flex-direction: column; gap: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); width: 185px; border: 1px solid rgba(255,255,255,0.4); }
+        .tool-btn { padding: 8px 12px; border: 1px solid #cbd5e1; background: white; cursor: pointer; border-radius: 6px; font-size: 13px; transition: 0.2s; text-align: left; font-weight: 500; }
+        .tool-btn:hover { background: #f1f5f9; border-color: var(--accent); }
+        .tool-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+        
+        .floating-zoom-bar { position: absolute; bottom: 20px; right: 20px; z-index: 100; background: var(--glass); backdrop-filter: blur(12px); padding: 8px; border-radius: 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.4); }
+        .zoom-ctrl-btn { width: 38px; height: 38px; background: white; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; color: #0f172a; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .zoom-ctrl-btn:hover { background: var(--accent); color: white; border-color: var(--accent); transform: scale(1.05); }
+
+        .map-container { position: relative; transition: transform 0.05s ease-out; transform-origin: 0 0; cursor: grab; }
+        .map-container:active { cursor: grabbing; }
+        .map-image { display: block; max-width: 100%; height: auto; pointer-events: none; user-select: none; border-radius: 8px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
+        
+        /* ලක්ෂ්‍යය සඳහා කළු පැහැය */
+        .marker { position: absolute; width: 28px; height: 28px; background: #000000; color: white; border-radius: 50%; text-align: center; font-size: 13px; font-weight: bold; line-height: 28px; border: 2px solid white; transform: translate(-50%, -50%); z-index: 10; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+        
+        /* කොටුව සහ රේඛාව සඳහා කළු පැහැය */
+        .draw-box { position: absolute; border: 2px solid #000000; background: rgba(0, 0, 0, 0.05); pointer-events: none; z-index: 5; border-radius: 4px; }
+        .draw-line { position: absolute; background: #000000 !important; transform-origin: 0 50%; pointer-events: none; z-index: 5; }
+        
+        /* රවුමෙන් පිටතට යන රේඛාව සහ ඊතලය (Circle with Arrow Pointer) සඳහා CSS */
+        .draw-arrow-pointer { position: absolute; pointer-events: none; z-index: 8; transform-origin: 0 50%; }
+        .arrow-shaft { position: absolute; background: #000000 !important; height: 2px; top: -1px; left: 0; }
+        .arrow-head { position: absolute; width: 0; height: 0; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 10px solid #000000; top: -6px; right: 0; transform: translateY(-1px); }
+        .arrow-circle-label { position: absolute; background: #000000; color: white; border-radius: 50%; text-align: center; font-weight: bold; border: 2px solid white; transform: translate(-50%, -50%); cursor: pointer; pointer-events: auto; z-index: 12; box-shadow: 0 3px 8px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
+        .arrow-circle-label:hover { background: #334155; }
+
+        /* කොටුව මැද අක්ෂරය */
+        .shape-label { position: absolute; background: white; color: #000000; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; border: 1px solid #000000; transform: translate(-50%, -50%); top: 50%; left: 50%; cursor: pointer; pointer-events: auto; box-shadow: 0 2px 6px rgba(0,0,0,0.1); white-space: nowrap; }
+        .shape-label:hover { background: #000000; color: white; }
+        
+        /* රේඛා කෙළවරේ A සහ B අක්ෂර කළු පාටින් */
+        .end-cap-label { position: absolute; color: #000000; font-weight: bold; font-size: 13px; text-shadow: 1px 1px 2px white; pointer-events: auto; white-space: nowrap; background: rgba(255,255,255,0.9); padding: 2px 6px; border-radius: 3px; border: 1px solid #000; cursor: pointer; z-index: 12; }
+        .end-cap-label:hover { background: #000; color: #fff; }
+        
+        .option-container { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .opt-label { background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 14px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 14px; transition: 0.2s; font-weight: 500; }
+        .opt-label:hover { border-color: var(--accent); background: #f1f5f9; }
+        .opt-label.correct-ui { background: #dcfce7 !important; border-color: #22c55e !important; color: #166534; }
+        .opt-label.wrong-ui { background: #fee2e2 !important; border-color: #ef4444 !important; color: #991b1b; }
+        
+        .control-panel { background: var(--primary); padding: 14px 24px; display: flex; justify-content: center; align-items: center; gap: 12px; color: white; flex-wrap: wrap; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 20; }
+        .btn { padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-family: inherit; font-size: 13px; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .btn:hover { transform: translateY(-1px); filter: brightness(1.1); }
+        .btn:active { transform: translateY(0); }
+        
+        .question-block { position: relative; margin-bottom: 20px; padding: 18px; border: 1px solid #e2e8f0; border-radius: 12px; border-left: 5px solid var(--accent); background: #ffffff; transition: 0.3s; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+        .question-block:hover { box-shadow: 0 8px 20px rgba(0,0,0,0.06); }
+        .delete-btn { position: absolute; top: 12px; right: 12px; background: #ef4444; color: white; border: none; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: none; font-size: 12px; }
+        
+        #qFormOverlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 24px; border-radius: 16px; z-index: 200; box-shadow: 0 25px 50px rgba(0,0,0,0.3); display: none; width: 340px; color: #1e293b; border: 1px solid #e2e8f0; }
+        #qFormOverlay input, #qFormOverlay select, #qFormOverlay textarea { width: 100%; padding: 10px 12px; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; font-family: inherit; }
+        .form-label { font-size: 12px; color: #64748b; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        .toggle-btn { background: #334155; color: white; border: 2px solid rgba(255,255,255,0.2); padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; }
+        
+        .notes-section { margin-top: 24px; padding: 16px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; }
+        .notes-section h3 { margin-top: 0; font-size: 15px; color: #b45309; }
+        .notes-textarea { width: 100%; height: 80px; padding: 10px; border: 1px solid #fcd34d; border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical; box-sizing: border-box; background: #fffdf5; }
+        
+        #cropModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); z-index: 1000; display: none; align-items: center; justify-content: center; flex-direction: column; color: white; }
+        #cropCanvasContainer { position: relative; max-width: 85vw; max-height: 60vh; overflow: auto; border: 2px solid rgba(255,255,255,0.2); border-radius: 12px; background: #000; box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
+        #cropCanvas { display: block; cursor: move; }
+
+        .grid-cell { position: absolute; border: 2px dashed rgba(0, 0, 0, 0.7); background: rgba(0, 0, 0, 0.15); cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 16px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+        .grid-cell:hover { background: rgba(0, 0, 0, 0.4); border-color: #fff; transform: scale(1.01); z-index: 20; }
+        .grid-cell.selected { background: rgba(34, 197, 94, 0.4); border: 3px solid #22c55e; z-index: 25; }
+    </style>
+</head>
+<body>
+
+<div class="control-panel">
+    <div id="score" style="font-size: 14px; font-weight:700; background: rgba(255,255,255,0.1); padding: 6px 12px; border-radius: 6px;">ලකුණු: --</div>
+    <button class="btn" style="background:#22c55e; color:white;" onclick="checkAll()">✓ පිළිතුරු පරීක්ෂා කරන්න</button>
+    <button class="btn" style="background:#475569; color:white;" onclick="enableEditMode()">⚙️ සංස්කරණ මාදිලිය</button>
+    
+    <button id="toggleLabelBtn" class="toggle-btn" onclick="toggleMapLabels()">සිතියම: අංක (1,2,3)</button>
+    <button class="btn" style="background:#0284c7; color:white;" onclick="setCustomAlphabetLabel()">🔤 අභිරුචි අක්ෂරයක් සකසන්න</button>
+
+    <button class="btn" style="background:linear-gradient(135deg, #f59e0b, #d97706); color:white;" onclick="openCropTool()">🗺️ TIF/THF සිතියම් & A4 Grid Crop</button>
+
+    <button class="btn" style="background:#0ea5e9; color:white;" onclick="changeMapImage()">🖼️ සිතියම වෙනස් කරන්න</button>
+    <button class="btn" style="background:#0ea5e9; color:white;" onclick="changeMainTitle()">✏️ මාතෘකාව වෙනස් කරන්න</button>
+    <button class="btn" style="background:#334155; color:white;" onclick="copyAllData()">📋 දත්ත පිටපත් කරන්න</button>
+    
+    <button class="btn" style="background:#ea580c; color:white;" onclick="openA4MapPrintView()">🖨️ A4 සිතියම Print</button>
+    <button class="btn" style="background:#9333ea; color:white;" onclick="openA4QuizPrintView()">📝 A4 ප්‍රශ්න Print</button>
+
+    <button id="saveBtn" class="btn" style="background:#eab308; color:#0f172a;" onclick="uploadToFirebase(event)">☁️ Cloud එකට සුරකින්න</button>
+    <button class="btn" style="background:#ef4444; color:white;" onclick="exportPDF()">📥 PDF ලබාගන්න</button>
+    <button class="btn" style="background:#3b82f6; color:white;" onclick="exportWord()">📄 Word ලබාගන්න</button>
+</div>
+
+<!-- Advanced TIF / THF Loader, Zoom & A4 Grid Splitter Modal -->
+<div id="cropModal">
+    <h3 style="margin-bottom: 4px; font-size: 18px;">සිතියම් පත්‍ර (01-62) පාලකය සහ A4 Grid කොටස් බෙදීමේ මෙවලම</h3>
+    <p style="font-size: 13px; color: #cbd5e1; margin-bottom: 8px;">💡 <b>ක්‍රමය:</b> <b>"🎯 A4 Crop කොටුව සකසන්න"</b> බොත්තම ඔබා, මතුවන A4 කොටුව මත මූසිකය තබා <b>Click කර අදිමින් (Drag කරමින්)</b> සිතියම මත ඕනෑම තැනකට පහසුවෙන් ගෙන යන්න.</p>
+    
+    <div style="margin-bottom: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center;">
+        <input type="file" id="localImgLoader" accept=".tif, .tiff, .thf, image/*" style="padding: 6px; background: white; color: black; border-radius: 6px; cursor: pointer; font-size: 12px;" onchange="loadTifOrImage(event)">
+        
+        <button class="btn" style="background:#2563eb; color:white;" onclick="openGoogleDriveFolder()">📂 Google Drive ෆෝල්ඩරය</button>
+        <button class="btn" style="background:#2563eb; color:white;" onclick="promptLoadDriveMap()">📥 Drive සිතියම් අංකය (01-62)</button>
+
+        <button id="gridSplitBtn" class="btn" style="background:#9333ea; color:white;" onclick="toggleA4GridSplitMode()">🗂️ A4 කොටස් වලට (Grid) බෙදන්න</button>
+        <button id="draggableA4Btn" class="btn" style="background:#059669; color:white;" onclick="initDraggableA4Box()">🎯 A4 Crop කොටුව සකසන්න</button>
+
+        <div style="display: flex; gap: 4px; align-items: center; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px;">
+            <span style="font-size: 12px;">Zoom:</span>
+            <button class="btn" style="padding: 4px 8px; background:#334155; color:white;" onclick="changeCropZoom(1.25)">🔍 +</button>
+            <button class="btn" style="padding: 4px 8px; background:#334155; color:white;" onclick="changeCropZoom(0.8)">🔍 -</button>
+            <button class="btn" style="padding: 4px 8px; background:#64748b; color:white;" onclick="resetCropZoom()">▣ Reset</button>
+        </div>
+
+        <button id="downloadJpgBtn" class="btn" style="background:#16a34a; color:white; display:none;" onclick="downloadAsJpg()">📥 ඩවුන්ලෝඩ් JPG</button>
+    </div>
+
+    <div id="cropCanvasContainer">
+        <canvas id="cropCanvas" style="transform-origin: 0 0;"></canvas>
+        <div id="gridOverlayLayer" style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events: none; display: none;"></div>
+    </div>
+    
+    <div style="margin-top: 12px; display: flex; gap: 10px;">
+        <button class="btn" style="background:#16a34a; color:white; padding: 12px 24px; font-size: 14px;" onclick="applyCrop()">✅ තෝරාගත් A4 කොටස (Grid/Crop) යොදන්න</button>
+        <button class="btn" style="background:#dc2626; color:white;" onclick="closeCropTool()">වසා දමන්න</button>
+    </div>
+</div>
+
+<div class="main-wrapper">
+    <div class="questions-side" id="quiz-area">
+        <h2 id="mainTitleDisplay" style="text-align:center; color: var(--primary); font-size: 20px; font-weight: 800; margin-bottom: 20px;">භූගෝල විද්‍යාව - 1:50,000 සිතියම් ප්‍රශ්න පත්‍රය</h2>
+        <div id="questions-container" style="flex: 1;">
+            <p style="text-align:center; color:#94a3b8; margin-top: 60px;">දත්ත ලබාගනිමින් පවතී...</p>
+        </div>
+
+        <div class="notes-section">
+            <h3>📝 සිතියම යටින් දැක්වෙන විස්තර සටහන්</h3>
+            <textarea id="mapNotes" class="notes-textarea" placeholder="මෙම සිතියම හෝ ප්‍රශ්න පත්‍රය පිළිබඳ අමතර විස්තර, උපදෙස් හෝ සටහන් මෙහි ලියන්න...">මෙම සිතියම 1:50,000 භූ ලක්ෂණ සිතියම් කොටසකට අදාළ ව්‍යුහගත සහ බහුවරණ ප්‍රශ්න සඳහා සකස් කරන ලද්දකි.</textarea>
+        </div>
+    </div>
+
+    <div class="map-side" id="mapSideContainer">
+        <div class="floating-zoom-bar">
+            <button class="zoom-ctrl-btn" title="Zoom In (+)" onclick="zoomIn()">+</button>
+            <button class="zoom-ctrl-btn" title="Zoom Out (-)" onclick="zoomOut()">−</button>
+            <button class="zoom-ctrl-btn" title="Reset Zoom" style="font-size: 11px;" onclick="resetZoom()">1:1</button>
+        </div>
+
+        <div class="map-tools" id="toolbar">
+            <button class="tool-btn active" id="tool-point" onclick="setTool('point')">📍 ලක්ෂ්‍යය</button>
+            <button class="tool-btn" id="tool-arrow" onclick="setTool('arrow')">↗️ රවුම සහ ඊතලය (පාරකට)</button>
+            <button class="tool-btn" id="tool-line" onclick="setTool('line')">📏 රේඛාව</button>
+            <button class="tool-btn" id="tool-box" onclick="setTool('box')">🔲 කොටුව</button>
+            
+            <hr style="border-color:#e2e8f0; margin:4px 0;">
+            <div class="form-label" style="font-size:11px;">අක්ෂර ප්‍රමාණය (Labels):</div>
+            <div style="display: flex; gap: 4px;">
+                <button class="tool-btn" style="flex:1; text-align:center;" onclick="changeLabelFontSize(1.2)" title="අකුරු විශාල කරන්න">🔍 (+) </button>
+                <button class="tool-btn" style="flex:1; text-align:center;" onclick="changeLabelFontSize(0.8)" title="අකුරු කුඩා කරන්න">🔍 (-) </button>
+            </div>
+
+            <hr style="border-color:#e2e8f0; margin:4px 0;">
+            <div class="form-label" style="font-size:11px;">රේඛා ඝනකම:</div>
+            <select id="strokeWidth" class="tool-btn" style="width: 100%;">
+                <option value="2">සාමාන්‍ය (2px)</option>
+                <option value="4">මධ්‍යම (4px)</option>
+                <option value="6">ඝනකම (6px)</option>
+            </select>
+            <hr style="border-color:#e2e8f0; margin:4px 0;">
+            <div class="form-label" style="font-size:11px;">රේඛා කෙළවර (A/B):</div>
+            <input type="text" id="lineEndsLabel" value="A/B" style="width: 85%; padding: 4px; margin-bottom:5px; border:1px solid #cbd5e1; border-radius:4px;">
+            <hr style="border-color:#e2e8f0; margin:4px 0;">
+            <button class="tool-btn" onclick="zoomIn()">🔍 Zoom +</button>
+            <button class="tool-btn" onclick="zoomOut()">🔍 Zoom -</button>
+            <button class="tool-btn" onclick="resetZoom()">▣ Reset View</button>
+        </div>
+
+        <div class="map-container" id="mapWrapper" 
+             onmousedown="startMapDrag(event)" onmousemove="mapDragMove(event)" onmouseup="endMapDrag(event)"
+             onwheel="handleMapWheelZoom(event)">
+            <img src="1.jpg.jpeg" id="mapImg" class="map-image" alt="සිතියම මෙහි දිස්වේ" onload="autoFitMap()" onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/3/3d/Default_image_icon_%28dark%29.svg';">
+            <div id="shapesLayer"></div>
+        </div>
+
+        <div id="qFormOverlay">
+            <h3 style="margin:0 0 12px 0; font-size:16px; font-weight:700; color:#0f172a;">නව ප්‍රශ්නයක් එකතු කරන්න</h3>
+            <div class="form-label">ප්‍රශ්න වර්ගය:</div>
+            <select id="qTypeSelect" class="tool-btn" style="width: 100%; margin-bottom: 12px;" onchange="toggleFormInputs()">
+                <option value="mcq">සාමාන්‍ය බහුවරණ (MCQ)</option>
+                <option value="structured">ව්‍යුහගත ප්‍රශ්නය (Structured)</option>
+            </select>
+
+            <input type="text" id="qInput" placeholder="ප්‍රධාන ප්‍රශ්නය / උපදෙස...">
+            
+            <div id="mcqFields">
+                <div class="form-label">නිවැරදි පිළිතුර:</div>
+                <input type="text" id="ansInput" style="border-color: #22c55e;">
+                <div class="form-label">වැරදි පිළිතුරු:</div>
+                <input type="text" id="w1Input" placeholder="වැරදි පිළිතුර 1">
+                <input type="text" id="w2Input" placeholder="වැරදි පිළිතුර 2">
+                <input type="text" id="w3Input" placeholder="වැරදි පිළිතුර 3">
+            </div>
+
+            <div id="structFields" style="display:none;">
+                <div class="form-label">උප කොටස් ('කොටස|නිවැරදි පිළිතුර|විකල්ප' ලෙස):</div>
+                <textarea id="structSubPartsInput" class="notes-textarea" placeholder="(i) A ලක්ෂණය කුමක්ද? | තානායම | ඓතිහාසික ස්ථානය / තානායම" style="height: 90px;"></textarea>
+            </div>
+
+            <button class="btn" style="background:#0f172a; color:white; width:100%; margin-top: 8px; justify-content:center;" onclick="saveQuestion()">සුරකින්න</button>
+            <button class="btn" style="background:#cbd5e1; color:#334155; width:100%; margin-top:8px; justify-content:center;" onclick="cancelDrawing()">අවලංගු කරන්න</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyD0wIzJMnZY7XGh9oWdT3myXAJM6H75x9M",
+        authDomain: "map-quiz-app2.firebaseapp.com",
+        databaseURL: "https://map-quiz-app2-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "map-quiz-app2",
+        storageBucket: "map-quiz-app2.firebasestorage.app",
+        messagingSenderId: "615553729274",
+        appId: "1:615553729274:web:232b78870b44b2c0ae3f43",
+        measurementId: "G-LZKJJ5C64K"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    let questions = [
+        {
+            type: "point", x: 420, y: 220, label: "1", q: "සිතියමේ '1' ලෙස ලකුණු කර ඇති ප්‍රදේශය කුමක්ද?", isStructured: false,
+            correct: "පහලවල", options: ["පහලවල", "කොටුවෙගෙදර", "මාතලේ", "රට්ටොට"].sort(() => Math.random() - 0.5)
+        }
+    ];
+
+    let currentTool = 'point';
+    let isEditMode = false;
+    let zoom = 1.0;
+    let isDrawing = false;
+    let startX, startY;
+    let tempElement = null;
+    let currentDrawingData = null;
+    let mapLabelMode = 'num';
+    let userDefinedLabel = ''; 
+    let globalLabelFontSize = 13; 
+
+    let isMapPanning = false;
+    let panStartX = 0, panStartY = 0;
+    let mapTranslateX = 0, mapTranslateY = 0;
+
+    let cropCanvas, cropCtx;
+    let cropStartX = 50, cropStartY = 50, cropW = 400, cropH = 565;
+    let isDraggingCropBox = false;
+    let dragOffsetX = 0, dragOffsetY = 0;
+    
+    let convertedJpgDataUrl = "";
+    let cropZoomLevel = 1.0;
+    let loadedImageObj = null;
+    let originalImageWidth = 1000;
+    let originalImageHeight = 1000;
+
+    let isGridSplitMode = false;
+    let selectedGridIndex = -1;
+    let gridCellsData = [];
+
+    function setCustomAlphabetLabel() {
+        let customLetter = prompt("සිතියම මත ලකුණු කිරීමට අවශ්‍ය අභිරුචි අක්ෂරය හෝ පදය ඇතුළත් කරන්න (හිස්ව තැබුවහොත් ස්වයංක්‍රීයව අනුපිළිවෙලින් අකුරු වැටේ):", userDefinedLabel);
+        if(customLetter !== null) {
+            userDefinedLabel = customLetter.trim();
+            if(userDefinedLabel !== "") {
+                mapLabelMode = 'custom';
+                alert(`දැන් සිතියම මත ක්ලික් කරන ස්ථාන සඳහා නියමිත '${userDefinedLabel}' අක්ෂරය ලකුණු වේ.`);
+            } else {
+                alert("අභිරුචි අක්ෂරය ඉවත් කරන ලදී. දැන් ස්වයංක්‍රීයව අනුපිළිවෙලින් අකුරු/අංක ලකුණු වේ.");
+            }
+        }
+    }
+
+    function changeLabelFontSize(factor) {
+        globalLabelFontSize *= factor;
+        if(globalLabelFontSize < 9) globalLabelFontSize = 9;
+        if(globalLabelFontSize > 32) globalLabelFontSize = 32;
+        
+        document.querySelectorAll('.marker, .shape-label, .end-cap-label, .arrow-circle-label').forEach(el => {
+            el.style.fontSize = globalLabelFontSize + 'px';
+            if(el.classList.contains('marker') || el.classList.contains('arrow-circle-label')) {
+                el.style.width = (globalLabelFontSize * 2.1) + 'px';
+                el.style.height = (globalLabelFontSize * 2.1) + 'px';
+                el.style.lineHeight = (globalLabelFontSize * 2.1) + 'px';
+            }
+        });
+    }
+
+    function zoomIn() {
+        zoom *= 1.2;
+        if(zoom > 10) zoom = 10;
+        updateMapTransform();
+    }
+
+    function zoomOut() {
+        zoom /= 1.2;
+        if(zoom < 0.2) zoom = 0.2;
+        updateMapTransform();
+    }
+
+    function resetZoom() {
+        zoom = 1.0;
+        mapTranslateX = 0;
+        mapTranslateY = 0;
+        updateMapTransform();
+    }
+
+    function updateMapTransform() {
+        const wrapper = document.getElementById('mapWrapper');
+        wrapper.style.transform = `translate(${mapTranslateX}px, ${mapTranslateY}px) scale(${zoom})`;
+    }
+
+    function handleMapWheelZoom(e) {
+        e.preventDefault();
+        const zoomFactor = 1.15;
+        let oldZoom = zoom;
+        
+        if (e.deltaY < 0) {
+            zoom *= zoomFactor;
+        } else {
+            zoom /= zoomFactor;
+        }
+        
+        if(zoom < 0.2) zoom = 0.2;
+        if(zoom > 10) zoom = 10;
+
+        const wrapper = document.getElementById('mapWrapper');
+        const rect = wrapper.getBoundingClientRect();
+        
+        let mouseX = e.clientX - rect.left;
+        let mouseY = e.clientY - rect.top;
+
+        mapTranslateX = mouseX - (mouseX - mapTranslateX) * (zoom / oldZoom);
+        mapTranslateY = mouseY - (mouseY - mapTranslateY) * (zoom / oldZoom);
+
+        updateMapTransform();
+    }
+
+    function startMapDrag(e) {
+        if(isEditMode && (e.target.classList.contains('marker') || e.target.classList.contains('shape-label') || e.target.classList.contains('end-cap-label') || e.target.classList.contains('arrow-circle-label'))) return;
+        if(isEditMode && currentTool !== 'point') {
+            handleMouseDown(e);
+            return;
+        }
+
+        isMapPanning = true;
+        panStartX = e.clientX - mapTranslateX;
+        panStartY = e.clientY - mapTranslateY;
+    }
+
+    function mapDragMove(e) {
+        if(isEditMode && currentTool !== 'point' && isDrawing) {
+            handleMouseMove(e);
+            return;
+        }
+        if(!isMapPanning) return;
+        mapTranslateX = e.clientX - panStartX;
+        mapTranslateY = e.clientY - panStartY;
+        updateMapTransform();
+    }
+
+    function endMapDrag(e) {
+        if(isEditMode && currentTool !== 'point' && isDrawing) {
+            handleMouseUp(e);
+            return;
+        }
+        isMapPanning = false;
+    }
+
+    function editShapeLabel(index, e) {
+        e.stopPropagation();
+        if(!isEditMode) return;
+        let currentLabel = questions[index].label || (mapLabelMode === 'custom' && userDefinedLabel !== '' ? userDefinedLabel : (mapLabelMode === 'num' ? (index + 1) : String.fromCharCode(65 + index)));
+        let newLabel = prompt("මෙම ලක්ෂ්‍යය / රවුම / කොටුව / රේඛාව සඳහා නව අක්ෂරයක් හෝ අංකයක් ඇතුළත් කරන්න (හිස්ව තැබුවහොත් අක්ෂරය ඉවත් වේ):", currentLabel);
+        if(newLabel !== null) {
+            questions[index].label = newLabel.trim();
+            renderAll();
+        }
+    }
+
+    function editLineCaps(index, e) {
+        e.stopPropagation();
+        if(!isEditMode) return;
+        let currentCaps = questions[index].lineCaps || "A/B";
+        let newCaps = prompt("රේඛා කෙළවර දෙක සඳහා අක්ෂර ඇතුළත් කරන්න (උදා: A/B):", currentCaps);
+        if(newCaps !== null && newCaps.trim() !== "") {
+            questions[index].lineCaps = newCaps.trim();
+            renderAll();
+        }
+    }
+
+    function openCropTool() {
+        document.getElementById('cropModal').style.display = 'flex';
+        cropCanvas = document.getElementById('cropCanvas');
+        cropCtx = cropCanvas.getContext('2d');
+        
+        cropCanvas.onmousedown = startCropInteraction;
+        cropCanvas.onmousemove = moveCropInteraction;
+        cropCanvas.onmouseup = endCropInteraction;
+        cropCanvas.ontouchstart = startCropTouch;
+        cropCanvas.ontouchmove = moveCropTouch;
+        cropCanvas.ontouchend = endCropTouch;
+    }
+
+    function closeCropTool() {
+        document.getElementById('cropModal').style.display = 'none';
+        document.getElementById('gridOverlayLayer').style.display = 'none';
+        isGridSplitMode = false;
+    }
+
+    function changeCropZoom(factor) {
+        cropZoomLevel *= factor;
+        if(cropZoomLevel < 0.2) cropZoomLevel = 0.2;
+        if(cropZoomLevel > 10) cropZoomLevel = 10;
+        cropCanvas.style.transform = `scale(${cropZoomLevel})`;
+        document.getElementById('gridOverlayLayer').style.transform = `scale(${cropZoomLevel})`;
+    }
+
+    function resetCropZoom() {
+        cropZoomLevel = 1.0;
+        cropCanvas.style.transform = `scale(1)`;
+        document.getElementById('gridOverlayLayer').style.transform = `scale(1)`;
+    }
+
+    function openGoogleDriveFolder() {
+        window.open('https://drive.google.com/drive/folders/1j1aO0xV9kG4KBujNQKa51VKRFEOvYvPc?usp=sharing', '_blank');
+    }
+
+    function promptLoadDriveMap() {
+        let mapNum = prompt("අවශ්‍ය සිතියම් අංකය ඇතුළත් කරන්න (01 සිට 62 දක්වා):");
+        if(mapNum !== null && mapNum.trim() !== "") {
+            let numInt = parseInt(mapNum);
+            if(isNaN(numInt) || numInt < 1 || numInt > 62) {
+                alert("කරුණාකර 01 සහ 62 අතර නිවැරදි අංකයක් ඇතුළත් කරන්න.");
+                return;
+            }
+            let formattedNum = String(numInt).padStart(2, '0');
+            let fileName = `${formattedNum}.THF`;
+            
+            window.open('https://drive.google.com/drive/folders/1j1aO0xV9kG4KBujNQKa51VKRFEOvYvPc?usp=sharing', '_blank');
+            alert(`කරුණාකර විවෘත වූ Google Drive ෆෝල්ඩරයෙන් '${fileName}' සිතියම් ගොනුව බාගත කර, ඉහත ගොනු තේරීමේ බොත්තම මඟින් මෘදුකාංගයට ඇතුළත් කරන්න.`);
+        }
+    }
+
+    function toggleA4GridSplitMode() {
+        if(!loadedImageObj) {
+            alert("කරුණාකර ප්‍රථමයෙන් සිතියම් පින්තූරයක් තෝරන්න.");
+            return;
+        }
+        isGridSplitMode = !isGridSplitMode;
+        const overlay = document.getElementById('gridOverlayLayer');
+        const btn = document.getElementById('gridSplitBtn');
+
+        if(isGridSplitMode) {
+            btn.style.background = "#22c55e";
+            btn.innerText = "✅ Grid මාදිලිය සක්‍රීයයි (කොටුවක් Click කරන්න)";
+            overlay.style.display = 'block';
+            buildA4GridCells();
+        } else {
+            btn.style.background = "#9333ea";
+            btn.innerText = "🗂️ A4 කොටස් වලට (Grid) බෙදන්න";
+            overlay.style.display = 'none';
+        }
+    }
+
+    function buildA4GridCells() {
+        const overlay = document.getElementById('gridOverlayLayer');
+        overlay.innerHTML = '';
+        gridCellsData = [];
+
+        let imgW = cropCanvas.width;
+        let imgH = cropCanvas.height;
+
+        let cols = 2;
+        let rows = 2;
+        
+        let cellW = imgW / cols;
+        let cellH = imgH / rows;
+
+        let index = 1;
+        for(let r = 0; r < rows; r++) {
+            for(let c = 0; c < cols; c++) {
+                let x = c * cellW;
+                let y = r * cellH;
+
+                gridCellsData.push({ id: index, x: x, y: y, w: cellW, h: cellH });
+
+                let div = document.createElement('div');
+                div.className = 'grid-cell';
+                div.dataset.gridId = index;
+                div.style.left = (x / imgW * 100) + '%';
+                div.style.top = (y / imgH * 100) + '%';
+                div.style.width = (cellW / imgW * 100) + '%';
+                div.style.height = (cellH / imgH * 100) + '%';
+                div.innerHTML = `A4 කොටස 0${index}`;
+
+                div.onclick = function() {
+                    document.querySelectorAll('.grid-cell').forEach(el => el.classList.remove('selected'));
+                    div.classList.add('selected');
+                    selectedGridIndex = parseInt(div.dataset.gridId);
+                    
+                    let target = gridCellsData.find(g => g.id === selectedGridIndex);
+                    if(target) {
+                        cropStartX = target.x;
+                        cropStartY = target.y;
+                        cropW = target.w;
+                        cropH = target.h;
+                    }
+                };
+
+                overlay.appendChild(div);
+                index++;
+            }
+        }
+    }
+
+    function initDraggableA4Box() {
+        if(!loadedImageObj) {
+            alert("කරුණාකර ප්‍රථමයෙන් සිතියම් පින්තූරයක් තෝරන්න.");
+            return;
+        }
+        isGridSplitMode = false;
+        document.getElementById('gridOverlayLayer').style.display = 'none';
+        document.getElementById('gridSplitBtn').style.background = "#9333ea";
+        document.getElementById('gridSplitBtn').innerText = "🗂️ A4 කොටස් වලට (Grid) බෙදන්න";
+
+        cropH = cropCanvas.height * 0.5;
+        cropW = cropH * (1 / 1.414);
+        cropStartX = (cropCanvas.width - cropW) / 2;
+        cropStartY = (cropCanvas.height - cropH) / 2;
+
+        redrawCanvasWithCropBox();
+        alert("A4 Crop කොටුව සක්‍රීය විය! දැන් එය මත මූසිකය තබා අවශ්‍ය තැනකට පහසුවෙන් අදිමින් (Drag කරමින්) ගෙන යා හැක.");
+    }
+
+    function redrawCanvasWithCropBox() {
+        if(!loadedImageObj) return;
+        cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+        cropCtx.drawImage(loadedImageObj, 0, 0);
+
+        cropCtx.strokeStyle = '#000000';
+        cropCtx.lineWidth = Math.max(2, cropCanvas.width / 300);
+        cropCtx.strokeRect(cropStartX, cropStartY, cropW, cropH);
+    }
+
+    async function loadTifOrImage(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const buffer = await file.arrayBuffer();
+        
+        try {
+            const ifds = UTIF.decode(buffer);
+            if(ifds && ifds.length > 0) {
+                UTIF.decodeImage(buffer, ifds[0]);
+                const rgba = UTIF.toRGBA8(ifds[0]);
+                
+                cropCanvas.width = ifds[0].width;
+                cropCanvas.height = ifds[0].height;
+                const imgData = cropCtx.createImageData(ifds[0].width, ifds[0].height);
+                imgData.data.set(new Uint8ClampedArray(rgba));
+                cropCtx.putImageData(imgData, 0, 0);
+
+                loadedImageObj = new Image();
+                loadedImageObj.src = cropCanvas.toDataURL();
+                originalImageWidth = ifds[0].width;
+                originalImageHeight = ifds[0].height;
+            } else {
+                throw new Error("Not standard TIFF");
+            }
+        } catch (err) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    loadedImageObj = img;
+                    cropCanvas.width = img.naturalWidth;
+                    cropCanvas.height = img.naturalHeight;
+                    cropCtx.drawImage(img, 0, 0);
+                    originalImageWidth = img.naturalWidth;
+                    originalImageHeight = img.naturalHeight;
+                }
+                img.src = e.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        setTimeout(() => {
+            convertedJpgDataUrl = cropCanvas.toDataURL('image/jpeg', 0.95);
+            document.getElementById('downloadJpgBtn').style.display = 'inline-block';
+            resetCropZoom();
+        }, 600);
+    }
+
+    function downloadAsJpg() {
+        if(!convertedJpgDataUrl) return;
+        const a = document.createElement('a');
+        a.href = convertedJpgDataUrl;
+        a.download = 'converted-map-image.jpg';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    function getCanvasCoords(e) {
+        const rect = cropCanvas.getBoundingClientRect();
+        let scaleX = cropCanvas.width / rect.width;
+        let scaleY = cropCanvas.height / rect.height;
+        return {
+            x: (e.clientX - rect.left) * scaleX,
+            y: (e.clientY - rect.top) * scaleY
+        };
+    }
+
+    function startCropInteraction(e) {
+        if(!loadedImageObj || isGridSplitMode) return;
+        let coords = getCanvasCoords(e);
+
+        if (coords.x >= cropStartX - 20 && coords.x <= cropStartX + cropW + 20 &&
+            coords.y >= cropStartY - 20 && coords.y <= cropStartY + cropH + 20) {
+            isDraggingCropBox = true;
+            dragOffsetX = coords.x - cropStartX;
+            dragOffsetY = coords.y - cropStartY;
+        }
+    }
+
+    function moveCropInteraction(e) {
+        if (!isDraggingCropBox || !loadedImageObj || isGridSplitMode) return;
+        let coords = getCanvasCoords(e);
+
+        cropStartX = coords.x - dragOffsetX;
+        cropStartY = coords.y - dragOffsetY;
+
+        if(cropStartX < 0) cropStartX = 0;
+        if(cropStartY < 0) cropStartY = 0;
+        if(cropStartX + cropW > cropCanvas.width) cropStartX = cropCanvas.width - cropW;
+        if(cropStartY + cropH > cropCanvas.height) cropStartY = cropCanvas.height - cropH;
+
+        redrawCanvasWithCropBox();
+    }
+
+    function endCropInteraction(e) {
+        isDraggingCropBox = false;
+    }
+
+    function startCropTouch(e) {
+        if(e.touches.length === 1) {
+            let touch = e.touches[0];
+            startCropInteraction({ clientX: touch.clientX, clientY: touch.clientY });
+        }
+    }
+    function moveCropTouch(e) {
+        if(e.touches.length === 1 && isDraggingCropBox) {
+            let touch = e.touches[0];
+            moveCropInteraction({ clientX: touch.clientX, clientY: touch.clientY });
+            e.preventDefault();
+        }
+    }
+    function endCropTouch(e) {
+        endCropInteraction(e);
+    }
+
+    function applyCrop() {
+        if(!loadedImageObj) {
+            alert("කරුණාකර ප්‍රථමයෙන් සිතියම් පින්තූරයක් තෝරන්න.");
+            return;
+        }
+
+        if(isGridSplitMode && selectedGridIndex === -1) {
+            alert("කරුණාකර ප්‍රථමයෙන් A4 කොටස් වලින් (Grid එකකින්) එකක් තෝරන්න.");
+            return;
+        }
+
+        let tempCanvas = document.createElement('canvas');
+        tempCanvas.width = cropW;
+        tempCanvas.height = cropH;
+        let tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(cropCanvas, cropStartX, cropStartY, cropW, cropH, 0, 0, cropW, cropH);
+        
+        let finalDataUrl = tempCanvas.toDataURL('image/png');
+        
+        const imgTest = new Image();
+        imgTest.onload = function() {
+            originalImageWidth = imgTest.naturalWidth;
+            originalImageHeight = imgTest.naturalHeight;
+            document.getElementById('mapImg').src = finalDataUrl;
+            database.ref('mapQuiz/mapImg').set(finalDataUrl);
+            database.ref('mapQuiz/origWidth').set(originalImageWidth);
+            database.ref('mapQuiz/origHeight').set(originalImageHeight);
+            renderAll();
+        };
+        imgTest.src = finalDataUrl;
+
+        closeCropTool();
+        alert("තෝරාගත් A4 කොටස සාර්ථකව CROP කර මෘදුකාංගයට ඇතුළත් කරන ලදී!");
+    }
+
+    function autoFitMap() {
+        const img = document.getElementById('mapImg');
+        if(!img) return;
+        resetZoom();
+        if(img.naturalWidth) {
+            if(originalImageWidth === 1000 || originalImageWidth === undefined) {
+                originalImageWidth = img.naturalWidth;
+                originalImageHeight = img.naturalHeight;
+            }
+        }
+        renderAll();
+    }
+
+    function changeMainTitle() {
+        const currentTitle = document.getElementById('mainTitleDisplay').innerText;
+        const newTitle = prompt("නව මාතෘකාව ඇතුළත් කරන්න:", currentTitle);
+        if(newTitle !== null && newTitle.trim() !== "") {
+            document.getElementById('mainTitleDisplay').innerText = newTitle;
+            document.getElementById('pageTitleText').innerText = newTitle;
+            database.ref('mapQuiz/title').set(newTitle);
+        }
+    }
+
+    function changeMapImage() {
+        const newImgUrl = prompt("නව සිතියම් පින්තූරයේ URL එක හෝ නම ඇතුළත් කරන්න:", document.getElementById('mapImg').src);
+        if(newImgUrl !== null && newImgUrl.trim() !== "") {
+            const imgTest = new Image();
+            imgTest.onload = function() {
+                originalImageWidth = imgTest.naturalWidth;
+                originalImageHeight = imgTest.naturalHeight;
+                document.getElementById('mapImg').src = newImgUrl;
+                database.ref('mapQuiz/mapImg').set(newImgUrl);
+                database.ref('mapQuiz/origWidth').set(originalImageWidth);
+                database.ref('mapQuiz/origHeight').set(originalImageHeight);
+                renderAll();
+                alert("සිතියම සාර්ථකව වෙනස් කරන ලදී!");
+            };
+            imgTest.src = newImgUrl;
+        }
+    }
+
+    function copyAllData() {
+        let textToCopy = document.getElementById('mainTitleDisplay').innerText + "\n\n";
+        questions.forEach((q, i) => {
+            let label = q.label ? `(${q.label}) ` : "";
+            textToCopy += `${i + 1}. ${label}${q.q}\n`;
+            if(q.isStructured && q.subParts) {
+                q.subParts.forEach(sp => {
+                    textToCopy += `   - ${sp.prompt} (පිළිතුර: ${sp.answer})\n`;
+                });
+            } else if(q.options) {
+                q.options.forEach((opt) => {
+                    textToCopy += `   - ${opt}\n`;
+                });
+                textToCopy += `   නිවැරදි පිළිතුර: ${q.correct}\n`;
+            }
+            textToCopy += `\n`;
+        });
+        const notes = document.getElementById('mapNotes').value;
+        if(notes) {
+            textToCopy += `විස්තර සටහන්: ${notes}\n`;
+        }
+
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            alert("සියලු ප්‍රශ්න සහ දත්ත ක්ලිප්බෝඩ් එකට පිටපත් විය!");
+        }).catch(err => {
+            alert("පිටපත් කිරීම අසාර්ථක විය: " + err);
+        });
+    }
+
+    function toggleMapLabels() {
+        const btn = document.getElementById('toggleLabelBtn');
+        if(mapLabelMode === 'num') {
+            mapLabelMode = 'alpha';
+            btn.innerText = "සිතියම: අකුරු (A,B,C)";
+        } else {
+            mapLabelMode = 'num';
+            btn.innerText = "සිතියම: අංක (1,2,3)";
+        }
+        renderAll();
+    }
+
+    function setTool(tool) {
+        currentTool = tool;
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('tool-' + tool).classList.add('active');
+    }
+
+    function toggleFormInputs() {
+        const type = document.getElementById('qTypeSelect').value;
+        if(type === 'mcq') {
+            document.getElementById('mcqFields').style.display = 'block';
+            document.getElementById('structFields').style.display = 'none';
+        } else {
+            document.getElementById('mcqFields').style.display = 'none';
+            document.getElementById('structFields').style.display = 'block';
+        }
+    }
+
+    function enableEditMode() {
+        if(prompt("මුරපදය ඇතුළත් කරන්න:") === "4112") {
+            isEditMode = true;
+            document.getElementById('toolbar').style.display = 'flex';
+            document.querySelectorAll('.delete-btn').forEach(b => b.style.display = 'block');
+            alert("සංස්කරණ මාදිලිය සක්‍රීයයි. දැන් ඔබට ලක්ෂ්‍ය, ඊතල, කොටු සහ රේඛා මත ක්ලික් කර ප්‍රශ්න එකතු කිරීමට මෙන්ම අක්ෂර වෙනස් කිරීමට හැක.");
+            renderAll();
+        }
+    }
+
+    function handleMouseDown(e) {
+        if(!isEditMode || e.target.classList.contains('marker') || e.target.classList.contains('shape-label') || e.target.classList.contains('end-cap-label') || e.target.classList.contains('arrow-circle-label')) return;
+        const imgEl = document.getElementById('mapImg');
+        const imgRect = imgEl.getBoundingClientRect();
+        
+        startX = (e.clientX - imgRect.left) / zoom;
+        startY = (e.clientY - imgRect.top) / zoom;
+        isDrawing = true;
+
+        if (currentTool !== 'point') {
+            tempElement = document.createElement('div');
+            if(currentTool === 'box') {
+                tempElement.className = 'draw-box';
+                tempElement.style.borderWidth = document.getElementById('strokeWidth').value + 'px';
+            } else if(currentTool === 'line') {
+                tempElement.className = 'draw-line';
+                tempElement.style.height = document.getElementById('strokeWidth').value + 'px';
+            } else if(currentTool === 'arrow') {
+                tempElement.className = 'draw-arrow-pointer';
+                tempElement.innerHTML = `<div class="arrow-shaft"></div><div class="arrow-head"></div>`;
+            }
+            document.getElementById('shapesLayer').appendChild(tempElement);
+        } else {
+            let autoLabel = "";
+            if(mapLabelMode === 'custom' && userDefinedLabel !== '') {
+                autoLabel = userDefinedLabel;
+            } else if(mapLabelMode === 'num') {
+                autoLabel = String(questions.length + 1);
+            } else {
+                autoLabel = String.fromCharCode(65 + (questions.length % 26));
+            }
+
+            const imgDisplayWidth = imgEl.clientWidth || originalImageWidth;
+            const imgDisplayHeight = imgEl.clientHeight || originalImageHeight;
+
+            currentDrawingData = {
+                type: 'point',
+                x: (startX / imgDisplayWidth) * originalImageWidth,
+                y: (startY / imgDisplayHeight) * originalImageHeight,
+                label: autoLabel
+            };
+            isDrawing = false;
+            document.getElementById('qFormOverlay').style.display = 'block';
+        }
+    }
+
+    function handleMouseMove(e) {
+        if(!isDrawing || currentTool === 'point') return;
+        const imgEl = document.getElementById('mapImg');
+        const imgRect = imgEl.getBoundingClientRect();
+        let curX = (e.clientX - imgRect.left) / zoom;
+        let curY = (e.clientY - imgRect.top) / zoom;
+
+        if(currentTool === 'box') {
+            tempElement.style.left = Math.min(startX, curX) + 'px';
+            tempElement.style.top = Math.min(startY, curY) + 'px';
+            tempElement.style.width = Math.abs(curX - startX) + 'px';
+            tempElement.style.height = Math.abs(curY - startY) + 'px';
+        } else if(currentTool === 'line') {
+            let dist = Math.sqrt(Math.pow(curX - startX, 2) + Math.pow(curY - startY, 2));
+            let angle = Math.atan2(curY - startY, curX - startX) * 180 / Math.PI;
+            tempElement.style.left = startX + 'px';
+            tempElement.style.top = startY + 'px';
+            tempElement.style.width = dist + 'px';
+            tempElement.style.transform = `rotate(${angle}deg)`;
+        } else if(currentTool === 'arrow') {
+            let dist = Math.sqrt(Math.pow(curX - startX, 2) + Math.pow(curY - startY, 2));
+            let angle = Math.atan2(curY - startY, curX - startX) * 180 / Math.PI;
+            tempElement.style.left = startX + 'px';
+            tempElement.style.top = startY + 'px';
+            tempElement.style.transform = `rotate(${angle}deg)`;
+            let shaft = tempElement.querySelector('.arrow-shaft');
+            if(shaft) shaft.style.width = dist + 'px';
+        }
+    }
+
+    function handleMouseUp(e) {
+        if(!isDrawing || currentTool === 'point') return;
+        isDrawing = false;
+        const imgEl = document.getElementById('mapImg');
+        const imgRect = imgEl.getBoundingClientRect();
+        
+        const imgDisplayWidth = imgEl.clientWidth || originalImageWidth;
+        const imgDisplayHeight = imgEl.clientHeight || originalImageHeight;
+
+        let endXCoord = (e.clientX - imgRect.left) / zoom;
+        let endYCoord = (e.clientY - imgRect.top) / zoom;
+
+        let autoLbl = "";
+        if(mapLabelMode === 'custom' && userDefinedLabel !== '') {
+            autoLbl = userDefinedLabel;
+        } else if(mapLabelMode === 'num') {
+            autoLbl = String(questions.length + 1);
+        } else {
+            autoLbl = String.fromCharCode(65 + (questions.length % 26));
+        }
+
+        currentDrawingData = {
+            type: currentTool,
+            x: (startX / imgDisplayWidth) * originalImageWidth,
+            y: (startY / imgDisplayHeight) * originalImageHeight,
+            x2: (endXCoord / imgDisplayWidth) * originalImageWidth,
+            y2: (endYCoord / imgDisplayHeight) * originalImageHeight,
+            lineCaps: document.getElementById('lineEndsLabel').value,
+            stroke: document.getElementById('strokeWidth').value,
+            label: autoLbl
+        };
+        document.getElementById('qFormOverlay').style.display = 'block';
+    }
+
+    function saveQuestion() {
+        const qText = document.getElementById('qInput').value;
+        const qType = document.getElementById('qTypeSelect').value;
+
+        if(!qText) return alert("කරුණාකර ප්‍රශ්නය හෝ මාතෘකාව ඇතුළත් කරන්න.");
+
+        let defaultLbl = currentDrawingData.label !== undefined ? currentDrawingData.label : (mapLabelMode === 'custom' && userDefinedLabel !== '' ? userDefinedLabel : (mapLabelMode === 'num' ? (questions.length + 1) : String.fromCharCode(65 + (questions.length % 26))));
+        let newQ = { ...currentDrawingData, q: qText, label: defaultLbl };
+
+        if(qType === 'mcq') {
+            const correct = document.getElementById('ansInput').value;
+            if(!correct) return alert("නිවැරදි පිළිතුර ඇතුළත් කරන්න.");
+            const options = [correct, document.getElementById('w1Input').value, document.getElementById('w2Input').value, document.getElementById('w3Input').value]
+                            .filter(o => o !== "").sort(() => Math.random() - 0.5);
+            newQ.isStructured = false;
+            newQ.correct = correct;
+            newQ.options = options;
+        } else {
+            const lines = document.getElementById('structSubPartsInput').value.split('\n').filter(l => l.trim() !== "");
+            let subParts = [];
+            lines.forEach(line => {
+                const parts = line.split('|').map(p => p.trim());
+                if(parts.length >= 3) {
+                    subParts.push({
+                        prompt: parts[0],
+                        answer: parts[1],
+                        options: parts[2].split('/').map(o => o.trim())
+                    });
+                }
+            });
+            if(subParts.length === 0) return alert("කරුණාකර නිවැරදි ආකෘතියෙන් උප කොටස් ඇතුළත් කරන්න.");
+            newQ.isStructured = true;
+            newQ.subParts = subParts;
+        }
+
+        questions.push(newQ);
+        renderAll();
+        closeForm();
+    }
+
+    function renderAll() {
+        const container = document.getElementById('questions-container');
+        const layer = document.getElementById('shapesLayer');
+        container.innerHTML = '';
+        layer.innerHTML = '';
+
+        const imgEl = document.getElementById('mapImg');
+        const imgDisplayWidth = imgEl.clientWidth || originalImageWidth;
+        const imgDisplayHeight = imgEl.clientHeight || originalImageHeight;
+
+        questions.forEach((data, i) => {
+            const mapLabel = data.label !== undefined ? data.label : (mapLabelMode === 'custom' && userDefinedLabel !== '' ? userDefinedLabel : (mapLabelMode === 'num' ? (i + 1) : String.fromCharCode(65 + (i % 26))));
+            const quizIndex = i + 1;
+            const sW = data.stroke || 2;
+
+            let renderX = (data.x / originalImageWidth) * imgDisplayWidth;
+            let renderY = (data.y / originalImageHeight) * imgDisplayHeight;
+
+            let editClickHandler = isEditMode ? `onclick="editShapeLabel(${i}, event)" title="ක්ලික් කර අක්ෂරය වෙනස් කරන්න"` : '';
+            let lineCapClickHandler = isEditMode ? `onclick="editLineCaps(${i}, event)" title="ක්ලික් කර A/B අක්ෂර වෙනස් කරන්න"` : '';
+
+            let customMarkerStyle = `left:${renderX}px; top:${renderY}px; font-size:${globalLabelFontSize}px; width:${globalLabelFontSize * 2.1}px; height:${globalLabelFontSize * 2.1}px; line-height:${globalLabelFontSize * 2.1}px;`;
+
+            if(data.type === 'point') {
+                layer.innerHTML += `<div class="marker" ${editClickHandler} style="${customMarkerStyle}">${mapLabel}</div>`;
+            } else if(data.type === 'box') {
+                let renderX2 = (data.x2 / originalImageWidth) * imgDisplayWidth;
+                let renderY2 = (data.y2 / originalImageHeight) * imgDisplayHeight;
+                let boxW = Math.abs(renderX2 - renderX);
+                let boxH = Math.abs(renderY2 - renderY);
+                let labelHtml = mapLabel !== "" ? `<div class="shape-label" ${editClickHandler} style="font-size:${globalLabelFontSize}px;">${mapLabel}</div>` : '';
+                layer.innerHTML += `<div class="draw-box" style="left:${Math.min(renderX, renderX2)}px; top:${Math.min(renderY, renderY2)}px; width:${boxW}px; height:${boxH}px; border-width:${sW}px;">${labelHtml}</div>`;
+            } else if(data.type === 'line') {
+                let renderX2 = (data.x2 / originalImageWidth) * imgDisplayWidth;
+                let renderY2 = (data.y2 / originalImageHeight) * imgDisplayHeight;
+                let dist = Math.sqrt(Math.pow(renderX2 - renderX, 2) + Math.pow(renderY2 - renderY, 2));
+                let angle = Math.atan2(renderY2 - renderY, renderX2 - renderX) * 180 / Math.PI;
+                const caps = (data.lineCaps || "A/B").split('/');
+                layer.innerHTML += `
+                    <div class="draw-line" style="left:${renderX}px; top:${renderY}px; width:${dist}px; height:${sW}px; transform:rotate(${angle}deg); background:#000000 !important;">
+                        <div class="end-cap-label" ${lineCapClickHandler} style="left:0; top:-24px; transform:rotate(${-angle}deg); font-size:${globalLabelFontSize}px;">${caps[0] || 'A'}</div>
+                        <div class="end-cap-label" ${lineCapClickHandler} style="right:0; top:-24px; transform:rotate(${-angle}deg); font-size:${globalLabelFontSize}px;">${caps[1] || 'B'}</div>
+                    </div>`;
+            } else if(data.type === 'arrow') {
+                let renderX2 = (data.x2 / originalImageWidth) * imgDisplayWidth;
+                let renderY2 = (data.y2 / originalImageHeight) * imgDisplayHeight;
+                let dist = Math.sqrt(Math.pow(renderX2 - renderX, 2) + Math.pow(renderY2 - renderY, 2));
+                let angle = Math.atan2(renderY2 - renderY, renderX2 - renderX) * 180 / Math.PI;
+                let circleStyle = `left:${renderX}px; top:${renderY}px; font-size:${globalLabelFontSize}px; width:${globalLabelFontSize * 2.1}px; height:${globalLabelFontSize * 2.1}px; line-height:${globalLabelFontSize * 2.1}px;`;
+                let circleHtml = mapLabel !== "" ? `<div class="arrow-circle-label" ${editClickHandler} style="${circleStyle}">${mapLabel}</div>` : ``;
+                layer.innerHTML += `
+                    <div class="draw-arrow-pointer" style="left:${renderX}px; top:${renderY}px; width:${dist}px; transform:rotate(${angle}deg);">
+                        <div class="arrow-shaft" style="height:${sW}px; width:${dist}px;"></div>
+                        <div class="arrow-head"></div>
+                    </div>
+                    ${circleHtml}`;
+            }
+
+            const delBtn = isEditMode ? `<button class="delete-btn" style="display:block;" onclick="deleteQuestion(${i})">මකන්න</button>` : '';
+            let labelDisplayPart = mapLabel !== "" ? ` (සිතියමේ '${mapLabel}' බලන්න)` : "";
+            
+            if(data.isStructured) {
+                let subHtml = '';
+                data.subParts.forEach((sp, spIdx) => {
+                    let optRadios = sp.options.map(opt => `
+                        <label class="opt-label" style="display:inline-flex; margin: 3px 5px;" onclick="selectStructOpt(this, ${i}, ${spIdx}, '${opt}')">
+                            <input type="radio" name="struct_${i}_${spIdx}" ${sp.userSelection === opt ? 'checked' : ''} style="pointer-events:none;"> <span>${opt}</span>
+                        </label>
+                    `).join('');
+                    subHtml += `
+                        <div style="margin: 12px 0; padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;" id="struct_part_${i}_${spIdx}">
+                            <div style="font-weight: 600; margin-bottom: 6px; color:#1e293b;">${sp.prompt}</div>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">${optRadios}</div>
+                            <div id="struct_feedback_${i}_${spIdx}" style="margin-top: 6px; font-size: 13px; font-weight: bold;"></div>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML += `
+                    <div class="question-block" id="block${i}">
+                        ${delBtn}
+                        <strong>${quizIndex}. ${data.q}${labelDisplayPart}</strong>
+                        <div style="margin-top: 10px;">${subHtml}</div>
+                    </div>
+                `;
+            } else {
+                let optsHtml = data.options.map(opt => `<label class="opt-label" onclick="selectMcq(this, ${i}, '${opt}')"><input type="radio" name="mcq${i}" ${data.userSelection === opt ? 'checked' : ''} style="pointer-events:none;"> <span>${opt}</span></label>`).join('');
+                container.innerHTML += `
+                    <div class="question-block" id="block${i}">
+                        ${delBtn}
+                        <strong>${quizIndex}. ${data.q}${labelDisplayPart}</strong>
+                        <div class="option-container">${optsHtml}</div>
+                        <div id="feedback${i}" style="margin-top:10px; font-weight:bold;"></div>
+                    </div>`;
+            }
+        });
+    }
+
+    function deleteQuestion(index) {
+        if(confirm("මෙම ප්‍රශ්නය ඉවත් කරන්නද?")) {
+            questions.splice(index, 1);
+            renderAll();
+        }
+    }
+
+    function selectMcq(el, qIndex, val) {
+        document.getElementById(`block${qIndex}`).querySelectorAll('.opt-label').forEach(l => l.style.borderColor = "#e2e8f0");
+        el.style.borderColor = "var(--accent)";
+        questions[qIndex].userSelection = val;
+    }
+
+    function selectStructOpt(el, qIndex, spIdx, val) {
+        const container = document.getElementById(`struct_part_${qIndex}_${spIdx}`);
+        container.querySelectorAll('.opt-label').forEach(l => l.style.borderColor = "#e2e8f0");
+        el.style.borderColor = "var(--accent)";
+        questions[qIndex].subParts[spIdx].userSelection = val;
+    }
+
+    function checkAll() {
+        let totalItems = 0;
+        let correctCount = 0;
+
+        questions.forEach((data, i) => {
+            if(data.isStructured) {
+                data.subParts.forEach((sp, spIdx) => {
+                    totalItems++;
+                    const container = document.getElementById(`struct_part_${i}_${spIdx}`);
+                    const feedback = document.getElementById(`struct_feedback_${i}_${spIdx}`);
+                    container.querySelectorAll('.opt-label').forEach(opt => {
+                        const text = opt.querySelector('span').innerText;
+                        opt.classList.remove('correct-ui', 'wrong-ui');
+                        if(text === sp.answer) opt.classList.add('correct-ui');
+                        if(sp.userSelection === text && text !== sp.answer) opt.classList.add('wrong-ui');
+                    });
+                    if(sp.userSelection === sp.answer) {
+                        correctCount++;
+                        feedback.innerHTML = "<span style='color:#16a34a;'>✓ නිවැරදියි!</span>";
+                    } else {
+                        feedback.innerHTML = `<span style='color:#dc2626;'>✗ වැරදියි. නිවැරදි: ${sp.answer}</span>`;
+                    }
+                });
+            } else {
+                totalItems++;
+                const block = document.getElementById(`block${i}`);
+                const feedback = document.getElementById(`feedback${i}`);
+                block.querySelectorAll('.opt-label').forEach(opt => {
+                    const text = opt.querySelector('span').innerText;
+                    opt.classList.remove('correct-ui', 'wrong-ui');
+                    if(text === data.correct) opt.classList.add('correct-ui');
+                    if(data.userSelection === text && text !== data.correct) opt.classList.add('wrong-ui');
+                });
+                if(data.userSelection === data.correct) {
+                    correctCount++;
+                    feedback.innerHTML = "<span style='color:#16a34a;'>✓ නිවැරදියි!</span>";
+                } else {
+                    feedback.innerHTML = `<span style='color:#dc2626;'>✗ වැරදියි. නිවැරදි: ${data.correct}</span>`;
+                }
+            }
+        });
+        document.getElementById('score').innerText = `ලකුණු: ${correctCount} / ${totalItems}`;
+    }
+
+    function uploadToFirebase(event) {
+        const btn = event.target;
+        const originalText = btn.innerText;
+        if (questions.length === 0) return alert("ප්‍රශ්න නැත.");
+        btn.disabled = true;
+        btn.innerText = "සුරකිමින්...";
+        
+        const payload = {
+            questions: questions,
+            title: document.getElementById('mainTitleDisplay').innerText,
+            notes: document.getElementById('mapNotes').value,
+            mapImg: document.getElementById('mapImg').src,
+            origWidth: originalImageWidth,
+            origHeight: originalImageHeight
+        };
+
+        database.ref('mapQuiz').set(payload)
+            .then(() => {
+                btn.style.background = "#22c55e";
+                btn.innerText = "සාර්ථකව සුරැකුණා! ✅";
+                setTimeout(() => {
+                    btn.style.background = "#eab308";
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                }, 3000);
+            })
+            .catch(err => {
+                alert("Error: " + err.message);
+                btn.disabled = false;
+                btn.innerText = originalText;
+            });
+    }
+
+    function loadFromFirebase() {
+        database.ref('mapQuiz').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data && data.questions) {
+                questions = data.questions;
+                if(data.title) {
+                    document.getElementById('mainTitleDisplay').innerText = data.title;
+                    document.getElementById('pageTitleText').innerText = data.title;
+                }
+                if(data.notes) {
+                    document.getElementById('mapNotes').value = data.notes;
+                }
+                if(data.mapImg) {
+                    document.getElementById('mapImg').src = data.mapImg;
+                }
+                if(data.origWidth) originalImageWidth = data.origWidth;
+                if(data.origHeight) originalImageHeight = data.origHeight;
+            }
+            renderAll();
+        });
+    }
+
+    function closeForm() { document.getElementById('qFormOverlay').style.display = 'none'; document.querySelectorAll('#qFormOverlay input').forEach(i => i.value = ""); tempElement = null; }
+    function cancelDrawing() { if(tempElement) tempElement.remove(); closeForm(); }
+    
+    function exportPDF() { 
+        const element = document.getElementById('quiz-area');
+        const opt = { margin: 10, filename: 'Geography_Map_Quiz.pdf', html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4' } };
+        html2pdf().set(opt).from(element).save(); 
+    }
+
+    async function exportWord() {
+        const title = document.getElementById('mainTitleDisplay').innerText;
+        const notes = document.getElementById('mapNotes').value;
+        
+        let docChildren = [
+            new docx.Paragraph({ text: title, heading: docx.HeadingLevel.HEADING_1, alignment: docx.AlignmentType.CENTER }),
+            new docx.Paragraph({ text: "" })
+        ];
+
+        questions.forEach((q, i) => {
+            let label = q.label ? `(${q.label}) ` : "";
+            docChildren.push(new docx.Paragraph({ text: `${i + 1}. ${label}${q.q}`, heading: docx.HeadingLevel.HEADING_3 }));
+            if(q.isStructured && q.subParts) {
+                q.subParts.forEach(sp => {
+                    docChildren.push(new docx.Paragraph({ text: `   ${sp.prompt}  (විකල්ප: ${sp.options.join(' / ')})` }));
+                });
+            } else if(q.options) {
+                q.options.forEach((opt) => {
+                    docChildren.push(new docx.Paragraph({ text: `   - ${opt}`, bullet: { level: 0 } }));
+                });
+                docChildren.push(new docx.Paragraph({ text: `නිවැරදි පිළිතුර: ${q.correct}`, italics: true }));
+            }
+            docChildren.push(new docx.Paragraph({ text: "" }));
+        });
+
+        if(notes) {
+            docChildren.push(new docx.Paragraph({ text: "විස්තර සටහන්:", heading: docx.HeadingLevel.HEADING_2 }));
+            docChildren.push(new docx.Paragraph({ text: notes }));
+        }
+
+        const doc = new docx.Document({ sections: [{ properties: {}, children: docChildren }] });
+
+        docx.Packer.toBlob(doc).then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "Geography_Quiz.docx";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }).catch(err => {
+            alert("Word ගොනුව සකස් කිරීමේදී දෝෂයක් ඇතිවිය: " + err);
+        });
+    }
+
+    function openA4MapPrintView() {
+        const title = document.getElementById('mainTitleDisplay').innerText;
+        const mapImgSrc = document.getElementById('mapImg').src;
+        const notes = document.getElementById('mapNotes').value;
+
+        const imgElement = document.getElementById('mapImg');
+        const displayedWidth = imgElement.clientWidth || originalImageWidth;
+        const displayedHeight = imgElement.clientHeight || originalImageHeight;
+
+        let generatedShapesHtml = '';
+
+        questions.forEach((data, i) => {
+            const mapLabel = data.label !== undefined ? data.label : (mapLabelMode === 'custom' && userDefinedLabel !== '' ? userDefinedLabel : (mapLabelMode === 'num' ? (i + 1) : String.fromCharCode(65 + (i % 26))));
+            const sW = data.stroke || 2;
+
+            let renderX = (data.x / originalImageWidth) * displayedWidth;
+            let renderY = (data.y / originalImageHeight) * displayedHeight;
+
+            let leftPct = (renderX / displayedWidth) * 100;
+            let topPct = (renderY / displayedHeight) * 100;
+
+            if(data.type === 'point') {
+                generatedShapesHtml += `<div class="marker" style="left:${leftPct}%; top:${topPct}%;">${mapLabel}</div>`;
+            } else if(data.type === 'box') {
+                let renderX2 = (data.x2 / originalImageWidth) * displayedWidth;
+                let renderY2 = (data.y2 / originalImageHeight) * displayedHeight;
+                let widthPct = (Math.abs(renderX2 - renderX) / displayedWidth) * 100;
+                let heightPct = (Math.abs(renderY2 - renderY) / displayedHeight) * 100;
+                let minLeftPct = (Math.min(renderX, renderX2) / displayedWidth) * 100;
+                let minTopPct = (Math.min(renderY, renderY2) / displayedHeight) * 100;
+                let labelHtml = mapLabel !== "" ? `<div class="shape-label" style="top:50%; left:50%;">${mapLabel}</div>` : '';
+                generatedShapesHtml += `
+                    <div class="draw-box" style="left:${minLeftPct}%; top:${minTopPct}%; width:${widthPct}%; height:${heightPct}%; border-width:${sW}px;">
+                        ${labelHtml}
+                    </div>`;
+            } else if(data.type === 'line') {
+                let renderX2 = (data.x2 / originalImageWidth) * displayedWidth;
+                let renderY2 = (data.y2 / originalImageHeight) * displayedHeight;
+                let dx = renderX2 - renderX;
+                let dy = renderY2 - renderY;
+                let dist = Math.sqrt(dx * dx + dy * dy);
+                let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                let distPct = (dist / displayedWidth) * 100;
+                const caps = (data.lineCaps || "A/B").split('/');
+                generatedShapesHtml += `
+                    <div class="draw-line" style="left:${leftPct}%; top:${topPct}%; width:${distPct}%; height:${sW}px; transform:rotate(${angle}deg); background:#000000 !important;">
+                        <div class="end-cap-label" style="left:0; top:-24px; transform:rotate(${-angle}deg)">${caps[0] || 'A'}</div>
+                        <div class="end-cap-label" style="right:0; top:-24px; transform:rotate(${-angle}deg)">${caps[1] || 'B'}</div>
+                    </div>`;
+            } else if(data.type === 'arrow') {
+                let renderX2 = (data.x2 / originalImageWidth) * displayedWidth;
+                let renderY2 = (data.y2 / originalImageHeight) * displayedHeight;
+                let dx = renderX2 - renderX;
+                let dy = renderY2 - renderY;
+                let dist = Math.sqrt(dx * dx + dy * dy);
+                let angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                let distPct = (dist / displayedWidth) * 100;
+                let circleHtml = mapLabel !== "" ? `<div class="arrow-circle-label" style="left:${leftPct}%; top:${topPct}%;">${mapLabel}</div>` : ``;
+                generatedShapesHtml += `
+                    <div class="draw-arrow-pointer" style="left:${leftPct}%; top:${topPct}%; width:${distPct}%; transform:rotate(${angle}deg);">
+                        <div class="arrow-shaft" style="height:${sW}px; width:${distPct}%;"></div>
+                        <div class="arrow-head"></div>
+                    </div>
+                    ${circleHtml}`;
+            }
+        });
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html lang="si">
+            <head>
+                <meta charset="UTF-8">
+                <title>${title} - A4 සිතියම මුද්‍රණය</title>
+                <style>
+                    @page { size: A4 portrait; margin: 5mm; }
+                    body { font-family: 'Iskoola Pota', 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; color: #111; box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    .a4-sheet { width: 200mm; height: 285mm; margin: 0 auto; display: flex; flex-direction: column; justify-content: space-between; align-items: center; }
+                    .header-section { text-align: center; margin-bottom: 2px; width: 100%; }
+                    h1 { font-size: 17px; margin: 0 0 2px 0; color: #0f172a; }
+                    .subtitle { font-size: 11px; color: #475569; margin-bottom: 3px; }
+                    .map-container { position: relative; width: 100%; max-height: 245mm; text-align: center; border: none; overflow: hidden; background: #fff; display: flex; align-items: center; justify-content: center; }
+                    .map-container img { width: 100%; height: auto; max-height: 245mm; object-fit: contain; display: block; border: none; }
+                    .notes-footer { margin-top: 3px; padding: 6px 10px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; font-size: 11px; width: 100%; box-sizing: border-box; }
+                    
+                    .marker { position: absolute; width: 22px; height: 22px; background: #000000; color: white; border-radius: 50%; text-align: center; font-size: 12px; font-weight: bold; line-height: 22px; border: 2px solid white; transform: translate(-50%, -50%); z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.4); }
+                    .draw-box { position: absolute; border: 2px solid #000000; background: transparent; z-index: 5; }
+                    .draw-line { position: absolute; background: #000000 !important; transform-origin: 0 50%; z-index: 5; }
+                    .draw-arrow-pointer { position: absolute; transform-origin: 0 50%; z-index: 8; }
+                    .arrow-shaft { position: absolute; background: #000000 !important; height: 2px; top: -1px; left: 0; }
+                    .arrow-head { position: absolute; width: 0; height: 0; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 10px solid #000000; top: -6px; right: 0; transform: translateY(-1px); }
+                    .arrow-circle-label { position: absolute; width: 22px; height: 22px; background: #000000; color: white; border-radius: 50%; text-align: center; font-size: 11px; font-weight: bold; line-height: 22px; border: 2px solid white; transform: translate(-50%, -50%); z-index: 12; display: flex; align-items: center; justify-content: center; }
+                    .shape-label { position: absolute; background: white; color: #000000; padding: 1px 4px; border-radius: 2px; font-size: 10px; font-weight: bold; border: 1px solid #000000; transform: translate(-50%, -50%); top: 50%; left: 50%; white-space: nowrap; }
+                    .end-cap-label { position: absolute; color: #000000; background: rgba(255,255,255,0.9); padding: 1px 4px; border: 1px solid #000; font-weight: bold; font-size: 11px; white-space: nowrap; }
+
+                    .print-btn-bar { text-align: center; margin-bottom: 15px; }
+                    @media print {
+                        .no-print { display: none !important; }
+                        body { margin: 0; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="print-btn-bar no-print">
+                    <button onclick="window.print()" style="padding: 10px 24px; background: #16a34a; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">🖨️ A4 සිතියම මුද්‍රණය කරන්න (Print)</button>
+                </div>
+
+                <div class="a4-sheet">
+                    <div class="header-section">
+                        <h1>${title}</h1>
+                        <div class="subtitle">ස්ථාන ලකුණු කළ සිතියම් පත්‍රය</div>
+                    </div>
+
+                    <div class="map-container">
+                        <img src="${mapImgSrc}" alt="සිතියම">
+                        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+                            ${generatedShapesHtml}
+                        </div>
+                    </div>
+
+                    ${notes ? `<div class="notes-footer"><strong>විස්තර සටහන්:</strong> ${notes}</div>` : ''}
+                </div>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    }
+
+    function openA4QuizPrintView() {
+        const title = document.getElementById('mainTitleDisplay').innerText;
+        
+        let questionsHtml = '';
+        questions.forEach((q, i) => {
+            const mapLabel = q.label !== undefined ? q.label : (mapLabelMode === 'custom' && userDefinedLabel !== '' ? userDefinedLabel : (mapLabelMode === 'num' ? (i + 1) : String.fromCharCode(65 + (i % 26))));
+            let labelDisplayPart = mapLabel !== "" ? ` (සිතියමේ '${mapLabel}' බලන්න)` : "";
+            
+            if(q.isStructured) {
+                let subHtml = '';
+                q.subParts.forEach((sp) => {
+                    let optStr = sp.options.join(' / ');
+                    subHtml += `
+                        <div style="margin: 8px 0 8px 15px; font-size: 14px;">
+                            <div><strong>${sp.prompt}</strong> ( ${optStr} ) _____________________ <span style="float: right; font-size: 13px; color:#64748b;">(ලකුණු 01 යි)</span></div>
+                        </div>
+                    `;
+                });
+                questionsHtml += `
+                    <div style="margin-bottom: 25px; page-break-inside: avoid; border-bottom: 1px dashed #cbd5e1; padding-bottom: 15px;">
+                        <p style="font-weight: bold; font-size: 15px; margin-bottom: 8px; color: #0f172a;">${i + 1}. ${q.q}${labelDisplayPart}</p>
+                        ${subHtml}
+                    </div>
+                `;
+            } else {
+                let optionsHtml = q.options.map(opt => `<span style="margin-right: 24px;">(${opt})</span>`).join('');
+                questionsHtml += `
+                    <div style="margin-bottom: 25px; page-break-inside: avoid; border-bottom: 1px dashed #cbd5e1; padding-bottom: 15px;">
+                        <p style="font-weight: bold; font-size: 15px; margin-bottom: 8px; color: #0f172a;">${i + 1}. ${q.q}${labelDisplayPart}</p>
+                        <div style="margin-left: 15px; font-size: 14px; color: #334155;">
+                            ${optionsHtml}
+                        </div>
+                    </div>
+                `;
+            }
+        });
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html lang="si">
+            <head>
+                <meta charset="UTF-8">
+                <title>${title} - A4 ප්‍රශ්න මාලාව මුද්‍රණය</title>
+                <style>
+                    @page { size: A4 portrait; margin: 15mm; }
+                    body { font-family: 'Iskoola Pota', 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; color: #111; line-height: 1.6; }
+                    .a4-sheet { width: 180mm; margin: 0 auto; }
+                    h1 { text-align: center; font-size: 20px; margin-bottom: 5mm; color: #0f172a; }
+                    .subtitle { text-align: center; font-size: 13px; color: #475569; margin-bottom: 20mm; border-bottom: 2px solid #0f172a; padding-bottom: 10px; }
+                    .print-btn-bar { text-align: center; margin-bottom: 15px; }
+                    @media print {
+                        .no-print { display:none !important; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="print-btn-bar no-print">
+                    <button onclick="window.print()" style="padding: 10px 25px; background: #9333ea; color: white; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">🖨️ A4 ප්‍රශ්න මාලාව මුද්‍රණය කරන්න (Print)</button>
+                </div>
+
+                <div class="a4-sheet">
+                    <h1>${title} - ප්‍රශ්න පත්‍රය</h1>
+                    <div class="subtitle">I කොටස - ව්‍යුහගත සහ බහුවරණ ප්‍රශ්න මාලාව</div>
+                    
+                    <div>
+                        ${questionsHtml}
+                    </div>
+                </div>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    }
+
+    window.onload = loadFromFirebase;
+</script>
+</body>
+</html>
